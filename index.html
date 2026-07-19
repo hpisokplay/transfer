@@ -124,6 +124,36 @@
   .fbtn.dl:hover{background:var(--accent);color:#fff;border-color:transparent}
   .fbtn.del:hover{background:var(--danger);color:#fff;border-color:transparent}
   .fbtn:active{transform:scale(.9)}
+  /* clickable open area */
+  .open-area{display:flex;align-items:center;gap:12px;flex:1;min-width:0;cursor:pointer;
+    border-radius:11px;padding:2px;margin:-2px;transition:background .18s}
+  .open-area:hover{background:color-mix(in srgb,var(--accent) 7%,transparent)}
+  .open-area:active{background:color-mix(in srgb,var(--accent) 12%,transparent)}
+  .open-hint{color:var(--accent);font-weight:600}
+  @keyframes spin{to{transform:rotate(360deg)}}
+
+  /* ---------- Image viewer ---------- */
+  .viewer{position:fixed;inset:0;z-index:70;background:rgba(8,12,20,.94);
+    backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);
+    display:flex;flex-direction:column;opacity:0;pointer-events:none;transition:opacity .22s}
+  .viewer.open{opacity:1;pointer-events:auto}
+  .viewer-bar{display:flex;align-items:center;gap:12px;
+    padding:calc(env(safe-area-inset-top) + 12px) 16px 12px;color:#fff}
+  .viewer-name{flex:1;min-width:0;font-size:14px;font-weight:600;
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis;opacity:.95}
+  .viewer-actions{display:flex;gap:8px;flex:0 0 auto}
+  .vbtn{width:40px;height:40px;border-radius:12px;border:1px solid rgba(255,255,255,.16);
+    background:rgba(255,255,255,.08);color:#fff;display:grid;place-items:center;cursor:pointer;
+    transition:background .2s,transform .12s}
+  .vbtn svg{width:19px;height:19px}
+  .vbtn:hover{background:rgba(255,255,255,.16)}
+  .vbtn:active{transform:scale(.92)}
+  .viewer-body{flex:1;display:flex;align-items:center;justify-content:center;overflow:auto;padding:8px 12px}
+  .viewer-body img{max-width:100%;max-height:100%;object-fit:contain;border-radius:8px;
+    box-shadow:0 12px 50px rgba(0,0,0,.5)}
+  .viewer-spin{display:none;align-items:center;justify-content:center}
+  .viewer-tip{text-align:center;color:rgba(255,255,255,.5);font-size:12px;
+    padding:0 0 calc(env(safe-area-inset-bottom) + 16px)}
 
   /* progress card */
   .card.busy{pointer-events:none}
@@ -354,6 +384,26 @@
   </div>
 </div>
 
+<!-- Image viewer -->
+<div class="viewer" id="viewer">
+  <div class="viewer-bar">
+    <span class="viewer-name" id="viewerName"></span>
+    <div class="viewer-actions">
+      <button class="vbtn" id="viewerDl" title="下載儲存">
+        <svg viewBox="0 0 24 24" fill="none"><path d="M12 3v12m0 0l-4-4m4 4l4-4M5 21h14" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </button>
+      <button class="vbtn" id="viewerClose" title="關閉">
+        <svg viewBox="0 0 24 24" fill="none"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>
+      </button>
+    </div>
+  </div>
+  <div class="viewer-body" id="viewerBody">
+    <div class="viewer-spin" id="viewerSpin"><svg viewBox="0 0 24 24" fill="none" style="width:34px;height:34px;animation:spin 1s linear infinite"><circle cx="12" cy="12" r="9" stroke="#fff" stroke-width="2" stroke-opacity=".3"/><path d="M21 12a9 9 0 00-9-9" stroke="#fff" stroke-width="2" stroke-linecap="round"/></svg></div>
+    <img id="viewerImg" alt="" />
+  </div>
+  <div class="viewer-tip">長按圖片可存到相簿</div>
+</div>
+
 <div class="toasts" id="toasts"></div>
 
 <script>
@@ -522,6 +572,65 @@ function saveBlob(blob, name){
   setTimeout(()=>URL.revokeObjectURL(url), 15000);
 }
 
+/* ============ 開啟 / 預覽 ============ */
+function mimeFor(name){
+  const ext=(name.split('.').pop()||'').toLowerCase();
+  const m={jpg:'image/jpeg',jpeg:'image/jpeg',png:'image/png',gif:'image/gif',webp:'image/webp',
+    bmp:'image/bmp',svg:'image/svg+xml',heic:'image/heic',tif:'image/tiff',tiff:'image/tiff',
+    pdf:'application/pdf',
+    doc:'application/msword',
+    docx:'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    ppt:'application/vnd.ms-powerpoint',
+    pptx:'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+    xls:'application/vnd.ms-excel',
+    xlsx:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    csv:'text/csv',txt:'text/plain'};
+  return m[ext]||'application/octet-stream';
+}
+async function fetchDecrypted(entry){
+  const bytes = await ghGetBlob(entry.sha);
+  const dec = await decBytes(bytes);
+  return new Blob([dec], {type: mimeFor(entry.name)});
+}
+function openEntry(f){
+  if(!requireConfig()) return;
+  if(f.category==='image'){ openImageViewer(f); return; }
+  // 非圖片:先同步開一個分頁(避免 iOS/瀏覽器把非同步後的 window.open 當成彈窗擋掉)
+  let w=null;
+  try{ w=window.open('','_blank'); }catch(e){}
+  if(w){ try{ w.document.write('<meta name="viewport" content="width=device-width,initial-scale=1"><body style="margin:0;display:grid;place-items:center;height:100vh;font-family:-apple-system,sans-serif;color:#8aa;background:#0e1620">🔓 解密開啟中…</body>'); }catch(e){} }
+  (async()=>{
+    try{
+      const blob = await fetchDecrypted(f);
+      const url = URL.createObjectURL(blob);
+      if(w && !w.closed){ w.location.href = url; }
+      else { const a=document.createElement('a'); a.href=url; a.target='_blank'; a.rel='noopener'; document.body.appendChild(a); a.click(); a.remove(); }
+      setTimeout(()=>URL.revokeObjectURL(url), 60000);
+    }catch(e){
+      if(w && !w.closed){ try{ w.close(); }catch(_){}}
+      toast('err', e.decrypt ? e.message : `開啟失敗:${e.message}`);
+    }
+  })();
+}
+
+/* 圖片全螢幕檢視 */
+let viewerUrl=null, viewerEntry=null;
+async function openImageViewer(f){
+  viewerEntry=f;
+  $('#viewerName').textContent=f.name;
+  const img=$('#viewerImg'); img.style.display='none'; img.src='';
+  $('#viewerSpin').style.display='flex';
+  $('#viewer').classList.add('open');
+  try{
+    const blob=await fetchDecrypted(f);
+    if(viewerUrl) URL.revokeObjectURL(viewerUrl);
+    viewerUrl=URL.createObjectURL(blob);
+    img.onload=()=>{ $('#viewerSpin').style.display='none'; img.style.display='block'; };
+    img.src=viewerUrl;
+  }catch(e){ closeViewer(); toast('err', e.decrypt ? e.message : `開啟失敗:${e.message}`); }
+}
+function closeViewer(){ $('#viewer').classList.remove('open'); const img=$('#viewerImg'); img.src=''; }
+
 /* ============ 刪除 ============ */
 async function deleteEntry(entry, silent){
   try{
@@ -593,15 +702,18 @@ function render(){
     const el=document.createElement('div'); el.className='card';
     const icon = `<div class="ftype" style="background:${catColor(f.category)}">${typeIconSVG(f.category, f.name)}</div>`;
     el.innerHTML = `
-      ${icon}
-      <div class="finfo">
-        <div class="fname">${esc(f.name)}</div>
-        <div class="fmeta"><span>${fmtSize(f.size)}</span><span class="dot"></span><span>${fmtTime(f.time)}</span></div>
+      <div class="open-area" title="點擊開啟">
+        ${icon}
+        <div class="finfo">
+          <div class="fname">${esc(f.name)}</div>
+          <div class="fmeta"><span>${fmtSize(f.size)}</span><span class="dot"></span><span>${fmtTime(f.time)}</span><span class="dot"></span><span class="open-hint">點擊開啟</span></div>
+        </div>
       </div>
       <div class="fbtns">
-        <button class="fbtn dl" title="下載">${dlSVG()}</button>
+        <button class="fbtn dl" title="下載儲存">${dlSVG()}</button>
         <button class="fbtn del" title="刪除">${delSVG()}</button>
       </div>`;
+    el.querySelector('.open-area').addEventListener('click', ()=>openEntry(f));
     el.querySelector('.dl').addEventListener('click', ev=>downloadEntry(f, ev.currentTarget));
     el.querySelector('.del').addEventListener('click', ()=>{ if(confirm(`確定刪除「${f.name}」?`)) deleteEntry(f,false); });
     listEl.appendChild(el);
@@ -653,6 +765,11 @@ function closeSettings(){ overlay.classList.remove('open'); }
 $('#btnSettings').addEventListener('click', openSettings);
 overlay.addEventListener('click', e=>{ if(e.target===overlay) closeSettings(); });
 $('#swAutoDel').addEventListener('click', ()=> $('#swAutoDel').classList.toggle('on'));
+
+/* 圖片檢視器事件 */
+$('#viewerClose').addEventListener('click', closeViewer);
+$('#viewer').addEventListener('click', e=>{ if(e.target.id==='viewer'||e.target.id==='viewerBody') closeViewer(); });
+$('#viewerDl').addEventListener('click', ()=>{ if(viewerEntry) downloadEntry(viewerEntry, $('#viewerDl')); });
 
 $('#btnSave').addEventListener('click', ()=>{
   cfg.owner=$('#inOwner').value.trim(); cfg.repo=$('#inRepo').value.trim();
