@@ -80,6 +80,20 @@
   /* ---------- Content ---------- */
   main{flex:1;padding:18px 16px 8px}
 
+  /* Search bar */
+  .search-bar{display:flex;align-items:center;gap:9px;background:var(--surface);
+    border:1px solid var(--border);border-radius:14px;padding:0 12px;height:46px;margin-bottom:14px;
+    box-shadow:var(--shadow);transition:border-color .2s,box-shadow .2s}
+  .search-bar:focus-within{border-color:var(--accent);box-shadow:0 0 0 3px color-mix(in srgb,var(--accent) 18%,transparent)}
+  .search-bar .s-ico{width:18px;height:18px;color:var(--muted);flex:0 0 auto}
+  .search-bar input{flex:1;min-width:0;border:none;background:none;outline:none;
+    font-size:15px;color:var(--text);font-family:inherit}
+  .search-bar input::placeholder{color:var(--muted)}
+  .s-clear{width:26px;height:26px;border-radius:50%;border:none;background:var(--border);
+    color:var(--text);cursor:pointer;display:grid;place-items:center;flex:0 0 auto;transition:background .2s}
+  .s-clear:hover{background:color-mix(in srgb,var(--danger) 30%,var(--border))}
+  .s-clear svg{width:12px;height:12px}
+
   /* Upload zone (compact) */
   .drop{
     display:flex; align-items:center; gap:13px;
@@ -301,6 +315,13 @@
   </header>
 
   <main>
+    <div class="search-bar" id="searchBar">
+      <svg class="s-ico" viewBox="0 0 24 24" fill="none"><circle cx="11" cy="11" r="7" stroke="currentColor" stroke-width="2"/><path d="M21 21l-4-4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+      <input id="searchInput" type="text" placeholder="搜尋檔案名稱…" autocapitalize="off" autocorrect="off" spellcheck="false" enterkeyhint="search" />
+      <button class="s-clear hidden" id="searchClear" aria-label="清除">
+        <svg viewBox="0 0 24 24" fill="none"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>
+      </button>
+    </div>
     <div class="drop" id="drop">
       <input type="file" id="fileInput" multiple class="hidden" />
       <div class="drop-ico">
@@ -426,7 +447,7 @@
 <div class="toasts" id="toasts"></div>
 
 <script>
-const APP_VERSION = 'v6';   /* 每次改版就 +1,方便確認有更新到 */
+const APP_VERSION = 'v7';   /* 每次改版就 +1,方便確認有更新到 */
 
 /* ============ 設定 (localStorage) ============ */
 const CFG_KEY = 'cft.config.v1';
@@ -666,6 +687,7 @@ async function refresh(showToast){
 
 /* ============ 畫面 ============ */
 let activeCat = 'recent';
+let searchQuery = '';
 const $ = s => document.querySelector(s);
 const listEl=$('#list'), emptyEl=$('#empty'), secTitle=$('#secTitle'), countPill=$('#countPill');
 
@@ -680,22 +702,29 @@ function catCount(c){ return c==='recent' ? idx.files.length : idx.files.filter(
 
 function render(){
   // 上傳格子只在「最近」分頁顯示
-  $('#drop').style.display = (activeCat==='recent') ? '' : 'none';
+  const searching = !!searchQuery;
+  $('#drop').style.display = (activeCat==='recent' && !searching) ? '' : 'none';
   // tabs active + badges
   document.querySelectorAll('.tab').forEach(t=>{
-    const c=t.dataset.cat; t.classList.toggle('active', c===activeCat);
+    const c=t.dataset.cat; t.classList.toggle('active', !searching && c===activeCat);
     const badge=t.querySelector('.badge'); const n=catCount(c);
     if(n>0 && c!=='recent'){ badge.textContent=n>99?'99+':n; badge.classList.remove('hidden'); }
     else badge.classList.add('hidden');
   });
-  const catInfo = activeCat==='recent' ? {label:'🕐 最近'} : CATS[activeCat];
-  secTitle.textContent = catInfo.label;
 
-  // build combined list (uploading first, then stored)
+  // build list (搜尋時跨全部分類依檔名過濾;否則依分類)
   let items = [...idx.files].sort((a,b)=>b.time-a.time);
-  if(activeCat!=='recent') items = items.filter(f=>f.category===activeCat);
-
-  const ups = [...uploading.entries()].filter(([id,u])=> activeCat==='recent'||u.category===activeCat);
+  let ups;
+  if(searching){
+    const q = searchQuery.toLowerCase();
+    items = items.filter(f => f.name.toLowerCase().includes(q));
+    ups = [];
+    secTitle.textContent = `🔍 「${searchQuery}」`;
+  }else{
+    if(activeCat!=='recent') items = items.filter(f=>f.category===activeCat);
+    ups = [...uploading.entries()].filter(([id,u])=> activeCat==='recent'||u.category===activeCat);
+    secTitle.textContent = activeCat==='recent' ? '🕐 最近' : CATS[activeCat].label;
+  }
   countPill.textContent = `${items.length + ups.length} 個檔案`;
 
   $('#btnSettings').classList.toggle('dot-warn', !isConfigured());
@@ -739,6 +768,7 @@ function render(){
   emptyEl.classList.toggle('hidden', !isEmpty);
   if(isEmpty){
     if(!isConfigured()){ $('#emptyTitle').textContent='先完成設定'; $('#emptyDesc').textContent='點右上角齒輪,填入 GitHub 帳號、私人庫、金鑰與加密密碼'; }
+    else if(searching){ $('#emptyTitle').textContent='找不到符合的檔案'; $('#emptyDesc').textContent=`沒有名稱包含「${searchQuery}」的檔案`; }
     else if(loading){ $('#emptyTitle').textContent='載入中…'; $('#emptyDesc').textContent='正在讀取雲端清單'; }
     else { $('#emptyTitle').textContent = activeCat==='recent'?'還沒有檔案':`沒有${CATS[activeCat].label.replace(/^\S+\s/,'')}檔案`;
            $('#emptyDesc').textContent='從上方上傳,或在另一台裝置傳送後按重新整理'; }
@@ -827,7 +857,20 @@ drop.addEventListener('drop', e=>{ if(e.dataTransfer.files.length) handleFiles(e
 window.addEventListener('dragover', e=>e.preventDefault());
 window.addEventListener('drop', e=>e.preventDefault());
 
-document.querySelectorAll('.tab').forEach(t=> t.addEventListener('click', ()=>{ activeCat=t.dataset.cat; render(); }));
+/* 搜尋 */
+const searchInput=$('#searchInput'), searchClear=$('#searchClear');
+searchInput.addEventListener('input', ()=>{
+  searchQuery = searchInput.value.trim();
+  searchClear.classList.toggle('hidden', !searchInput.value);
+  render();
+});
+searchClear.addEventListener('click', ()=>{
+  searchInput.value=''; searchQuery=''; searchClear.classList.add('hidden');
+  render(); searchInput.focus();
+});
+function clearSearch(){ if(searchQuery||searchInput.value){ searchInput.value=''; searchQuery=''; searchClear.classList.add('hidden'); } }
+
+document.querySelectorAll('.tab').forEach(t=> t.addEventListener('click', ()=>{ clearSearch(); activeCat=t.dataset.cat; render(); }));
 $('#btnRefreshTop').addEventListener('click', ()=>refresh(true));
 
 /* ============ 檢查更新 ============ */
