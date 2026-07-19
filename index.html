@@ -185,6 +185,9 @@
   .prog-bar{height:100%;width:40%;border-radius:999px;background:var(--grad);
     animation:slide 1.1s ease-in-out infinite}
   @keyframes slide{0%{margin-left:-40%}100%{margin-left:100%}}
+  .prog-bar.det{animation:none;margin-left:0;transition:width .25s ease}
+  .pctxt{font-size:10.5px;font-weight:800;letter-spacing:-.02em}
+  .ghost-btn.danger{color:var(--danger)}
   .status-txt{font-size:11.5px;color:var(--accent);font-weight:600}
 
   /* empty */
@@ -415,6 +418,11 @@
       <div class="switch" id="swAutoDel"></div>
     </div>
 
+    <div class="toggle">
+      <div class="t-txt"><b>雲端使用量</b><small id="storInfo">—</small></div>
+      <button class="ghost-btn danger" id="btnClearAll">🗑️ 清空全部</button>
+    </div>
+
     <button class="primary" id="btnSave">儲存設定</button>
 
     <div class="app-foot">
@@ -438,7 +446,7 @@
     </div>
   </div>
   <div class="viewer-body" id="viewerBody">
-    <div class="viewer-spin" id="viewerSpin"><svg viewBox="0 0 24 24" fill="none" style="width:34px;height:34px;animation:spin 1s linear infinite"><circle cx="12" cy="12" r="9" stroke="#fff" stroke-width="2" stroke-opacity=".3"/><path d="M21 12a9 9 0 00-9-9" stroke="#fff" stroke-width="2" stroke-linecap="round"/></svg></div>
+    <div class="viewer-spin" id="viewerSpin"><svg viewBox="0 0 24 24" fill="none" style="width:34px;height:34px;animation:spin 1s linear infinite"><circle cx="12" cy="12" r="9" stroke="#fff" stroke-width="2" stroke-opacity=".3"/><path d="M21 12a9 9 0 00-9-9" stroke="#fff" stroke-width="2" stroke-linecap="round"/></svg><span id="viewerPct" style="color:#fff;font-size:13px;font-weight:700;margin-left:10px"></span></div>
     <img id="viewerImg" alt="" />
   </div>
   <div class="viewer-tip">長按圖片可存到相簿</div>
@@ -447,7 +455,7 @@
 <div class="toasts" id="toasts"></div>
 
 <script>
-const APP_VERSION = 'v7';   /* 每次改版就 +1,方便確認有更新到 */
+const APP_VERSION = 'v8';   /* 每次改版就 +1,方便確認有更新到 */
 
 /* ============ 設定 (localStorage) ============ */
 const CFG_KEY = 'cft.config.v1';
@@ -514,6 +522,49 @@ async function ghGetBlob(sha){
   if(!r.ok) throw await ghErr(r,'下載失敗');
   const d = await r.json(); return b64ToBytes(d.content);
 }
+/* 進度版:上傳(XHR 才能追蹤 upload progress) */
+function ghPutProgress(path, bytes, sha, onProgress){
+  return new Promise((resolve,reject)=>{
+    const body = {message:(sha?'update ':'add ')+path, content:b2b64(bytes)};
+    if(sha) body.sha=sha;
+    const x = new XMLHttpRequest();
+    x.open('PUT', `${repoBase()}/contents/${path}`);
+    x.setRequestHeader('Authorization','Bearer '+cfg.pat);
+    x.setRequestHeader('Accept','application/vnd.github+json');
+    x.setRequestHeader('Content-Type','application/json');
+    x.upload.onprogress = e=>{ if(e.lengthComputable && onProgress) onProgress(Math.round(e.loaded/e.total*100)); };
+    x.onload = ()=>{
+      try{ const d=JSON.parse(x.responseText);
+        if(x.status>=200 && x.status<300) resolve(d.content.sha);
+        else reject(Object.assign(new Error(d.message||'上傳失敗'),{status:x.status}));
+      }catch(err){ reject(new Error('上傳失敗 ('+x.status+')')); }
+    };
+    x.onerror = ()=>reject(new Error('網路錯誤'));
+    x.send(JSON.stringify(body));
+  });
+}
+/* 進度版:下載(gzip 時 total 不可靠,用檔案大小估算) */
+function ghGetBlobProgress(sha, sizeHint, onProgress){
+  return new Promise((resolve,reject)=>{
+    const x = new XMLHttpRequest();
+    x.open('GET', `${repoBase()}/git/blobs/${sha}`);
+    x.setRequestHeader('Authorization','Bearer '+cfg.pat);
+    x.setRequestHeader('Accept','application/vnd.github+json');
+    x.onprogress = e=>{
+      if(!onProgress) return;
+      const total = e.lengthComputable ? e.total : Math.round((sizeHint||0)*1.42)+300;
+      if(total>0) onProgress(Math.min(99, Math.round(e.loaded/total*100)));
+    };
+    x.onload = ()=>{
+      try{ const d=JSON.parse(x.responseText);
+        if(x.status>=200 && x.status<300){ if(onProgress) onProgress(100); resolve(b64ToBytes(d.content)); }
+        else reject(Object.assign(new Error(d.message||'下載失敗'),{status:x.status}));
+      }catch(err){ reject(new Error('下載失敗 ('+x.status+')')); }
+    };
+    x.onerror = ()=>reject(new Error('網路錯誤'));
+    x.send();
+  });
+}
 async function ghPut(path, bytes, sha){
   const body = {message:(sha?'update ':'add ')+path, content:b2b64(bytes)};
   if(sha) body.sha = sha;
@@ -538,6 +589,10 @@ async function loadIndex(){
   try{ idx = JSON.parse(td.decode(await decBytes(res.bytes))); }
   catch(e){ const err=new Error('索引解密失敗,請確認加密密碼與另一台裝置一致'); err.decrypt=true; throw err; }
   if(!idx.files) idx.files=[];
+  // 清掉已不存在檔案的縮圖快取
+  let pruned=false;
+  Object.keys(thumbs).forEach(k=>{ if(thumbs[k]!=='x' && !idx.files.some(f=>f.id===k)){ delete thumbs[k]; pruned=true; } });
+  if(pruned) saveThumbs();
 }
 async function saveIndex(){
   const enc = await encBytes(te.encode(JSON.stringify(idx)));
@@ -567,6 +622,45 @@ function categorize(name){
 function catColor(c){ return CATS[c] ? CATS[c].color : 'var(--c-other)'; }
 function extLabel(name){ return (name.split('.').pop()||'?').toUpperCase().slice(0,4); }
 
+/* ============ 圖片縮圖(本機快取) ============ */
+const THUMB_KEY='cft.thumbs.v1';
+let thumbs={}; try{ thumbs=JSON.parse(localStorage.getItem(THUMB_KEY)||'{}'); }catch(e){}
+function saveThumbs(){
+  try{ localStorage.setItem(THUMB_KEY, JSON.stringify(thumbs)); }
+  catch(e){ // 空間不足 → 丟掉一半舊的再試
+    const ks=Object.keys(thumbs); ks.slice(0, Math.ceil(ks.length/2)).forEach(k=>delete thumbs[k]);
+    try{ localStorage.setItem(THUMB_KEY, JSON.stringify(thumbs)); }catch(_){}
+  }
+}
+async function makeThumbFromBlob(id, blob){
+  try{
+    const bmp = await createImageBitmap(blob);
+    const S=96, c=document.createElement('canvas'); c.width=S; c.height=S;
+    const ctx=c.getContext('2d');
+    const r=Math.max(S/bmp.width, S/bmp.height), w=bmp.width*r, h=bmp.height*r;
+    ctx.drawImage(bmp,(S-w)/2,(S-h)/2,w,h);
+    thumbs[id]=c.toDataURL('image/jpeg',.72); saveThumbs();
+    return true;
+  }catch(e){ return false; }
+}
+let thumbQueue=[], thumbBusy=false;
+function queueThumb(f){
+  if(thumbs[f.id] || thumbQueue.some(x=>x.id===f.id)) return;
+  thumbQueue.push(f); pumpThumbs();
+}
+async function pumpThumbs(){
+  if(thumbBusy) return; thumbBusy=true;
+  while(thumbQueue.length){
+    const f=thumbQueue.shift();
+    try{
+      const blob = await fetchDecrypted(f);
+      const ok = await makeThumbFromBlob(f.id, blob);
+      if(ok) render(); else thumbs[f.id]='x';   // 無法解碼(如 HEIC),本次不再嘗試
+    }catch(e){ thumbs[f.id]='x'; }              // 網路失敗 → 僅記憶體標記,下次重試
+  }
+  thumbBusy=false;
+}
+
 /* ============ 上傳 ============ */
 const uploading = new Map(); // id -> {name, category, size, status}
 async function handleFiles(fileList){
@@ -578,10 +672,14 @@ async function handleFiles(fileList){
     render();
     try{
       const raw = new Uint8Array(await file.arrayBuffer());
+      if(cat==='image') makeThumbFromBlob(id, file);   // 順便生成縮圖(不擋上傳)
       uploading.get(id).status='上傳中…'; render();
       const enc = await encBytes(raw);
       const path = `data/${id}.bin`;
-      const sha = await ghPut(path, enc);
+      const sha = await ghPutProgress(path, enc, null, p=>{
+        const u=uploading.get(id);
+        if(u && u.pct!==p){ u.pct=p; u.status=`上傳中… ${p}%`; render(); }
+      });
       const entry = {id, name:file.name, category:cat, size:file.size, time:Date.now(), sha, path};
       await mutateIndex(x => { if(!x.files.some(f=>f.id===id)) x.files.push(entry); });
       uploading.delete(id); render();
@@ -596,11 +694,12 @@ async function handleFiles(fileList){
 /* ============ 下載 ============ */
 async function downloadEntry(entry, btn){
   if(!requireConfig()) return;
-  const prev = btn.innerHTML; btn.innerHTML = spinnerSVG(); btn.style.pointerEvents='none';
+  const prev = btn.innerHTML;
+  btn.innerHTML = '<span class="pctxt">0%</span>'; btn.style.pointerEvents='none';
+  const pctEl = btn.querySelector('.pctxt');
   try{
-    const bytes = await ghGetBlob(entry.sha);
-    const dec = await decBytes(bytes);
-    saveBlob(new Blob([dec]), entry.name);
+    const blob = await fetchDecrypted(entry, p=>{ if(pctEl) pctEl.textContent=p+'%'; });
+    saveBlob(blob, entry.name);
     toast('ok', `已解密下載 ${entry.name}`);
     if(cfg.autoDelete){ await deleteEntry(entry, true); toast('info','已自動刪除雲端副本'); }
   }catch(e){
@@ -629,8 +728,8 @@ function mimeFor(name){
     csv:'text/csv',txt:'text/plain'};
   return m[ext]||'application/octet-stream';
 }
-async function fetchDecrypted(entry){
-  const bytes = await ghGetBlob(entry.sha);
+async function fetchDecrypted(entry, onProgress){
+  const bytes = await ghGetBlobProgress(entry.sha, entry.size, onProgress);
   const dec = await decBytes(bytes);
   return new Blob([dec], {type: mimeFor(entry.name)});
 }
@@ -656,8 +755,9 @@ async function openImageViewer(f){
   const img=$('#viewerImg'); img.style.display='none'; img.src='';
   $('#viewerSpin').style.display='flex';
   $('#viewer').classList.add('open');
+  $('#viewerPct').textContent='';
   try{
-    const blob=await fetchDecrypted(f);
+    const blob=await fetchDecrypted(f, p=>{ $('#viewerPct').textContent=p+'%'; });
     if(viewerUrl) URL.revokeObjectURL(viewerUrl);
     viewerUrl=URL.createObjectURL(blob);
     img.onload=()=>{ $('#viewerSpin').style.display='none'; img.style.display='block'; };
@@ -676,9 +776,10 @@ async function deleteEntry(entry, silent){
 }
 
 /* ============ 重新整理 ============ */
-let loading=false;
+let loading=false, lastRefresh=0;
 async function refresh(showToast){
   if(!isConfigured()){ render(); return; }
+  lastRefresh=Date.now();
   loading=true; render();
   try{ await loadIndex(); if(showToast) toast('ok','已更新'); }
   catch(e){ toast('err', e.decrypt ? e.message : `更新失敗:${e.message}`); }
@@ -733,19 +834,24 @@ function render(){
   // uploading cards
   for(const [id,u] of ups){
     const el=document.createElement('div'); el.className='card busy';
+    const bar = (u.pct!=null) ? `<div class="prog-bar det" style="width:${u.pct}%"></div>` : `<div class="prog-bar"></div>`;
     el.innerHTML = `
       <div class="ftype" style="background:${catColor(u.category)}">${typeIconSVG(u.category, u.name)}</div>
       <div class="finfo">
         <div class="fname">${esc(u.name)}</div>
         <div class="status-txt">${u.status}</div>
-        <div class="prog-wrap"><div class="prog-bar"></div></div>
+        <div class="prog-wrap">${bar}</div>
       </div>`;
     listEl.appendChild(el);
   }
   // stored cards
   for(const f of items){
     const el=document.createElement('div'); el.className='card';
-    const icon = `<div class="ftype" style="background:${catColor(f.category)}">${typeIconSVG(f.category, f.name)}</div>`;
+    const t = f.category==='image' ? thumbs[f.id] : null;
+    if(f.category==='image' && !t) queueThumb(f);
+    const icon = (t && t!=='x')
+      ? `<img class="thumb" src="${t}" alt="" />`
+      : `<div class="ftype" style="background:${catColor(f.category)}">${typeIconSVG(f.category, f.name)}</div>`;
     el.innerHTML = `
       <div class="open-area" title="點擊開啟">
         ${icon}
@@ -805,12 +911,38 @@ function openSettings(){
   $('#inPat').value=cfg.pat; $('#inPass').value=cfg.password;
   $('#swAutoDel').classList.toggle('on', cfg.autoDelete);
   $('#testResult').className='test-result';
+  updateStorInfo();
   overlay.classList.add('open');
+}
+function updateStorInfo(){
+  const total = idx.files.reduce((s,f)=>s+(f.size||0),0);
+  $('#storInfo').textContent = idx.files.length
+    ? `${idx.files.length} 個檔案 · 共 ${fmtSize(total)}` : '目前沒有檔案';
 }
 function closeSettings(){ overlay.classList.remove('open'); }
 $('#btnSettings').addEventListener('click', openSettings);
 overlay.addEventListener('click', e=>{ if(e.target===overlay) closeSettings(); });
 $('#swAutoDel').addEventListener('click', ()=> $('#swAutoDel').classList.toggle('on'));
+
+/* 清空全部 */
+$('#btnClearAll').addEventListener('click', async ()=>{
+  if(!isConfigured()){ toast('info','請先完成設定'); return; }
+  if(!idx.files.length){ toast('info','雲端已經是空的'); return; }
+  if(!confirm(`確定刪除雲端全部 ${idx.files.length} 個檔案?此動作無法復原!`)) return;
+  const btn=$('#btnClearAll'); btn.disabled=true;
+  try{
+    await loadIndex();                       // 先拿最新清單與 sha
+    const files=[...idx.files]; let done=0;
+    for(const f of files){
+      try{ await ghDelete(f.path, f.sha); }catch(e){}
+      done++; btn.textContent=`刪除中… ${done}/${files.length}`;
+    }
+    await mutateIndex(x=>{ x.files=[]; });
+    thumbs={}; saveThumbs();
+    toast('ok','已清空全部檔案'); render(); updateStorInfo();
+  }catch(e){ toast('err','清空失敗:'+e.message); }
+  finally{ btn.disabled=false; btn.textContent='🗑️ 清空全部'; }
+});
 
 /* 圖片檢視器事件 */
 $('#viewerClose').addEventListener('click', closeViewer);
@@ -888,6 +1020,16 @@ async function forceUpdate(btn){
   location.replace(u.href);
 }
 $('#btnUpdate').addEventListener('click', ev=>forceUpdate(ev.currentTarget));
+
+/* ============ 切回 App 自動重新整理 ============ */
+function autoRefresh(){
+  if(document.visibilityState!=='visible') return;
+  if(!isConfigured()) return;
+  if(Date.now()-lastRefresh < 8000) return;   // 8 秒內不重複
+  refresh(false);
+}
+document.addEventListener('visibilitychange', autoRefresh);
+window.addEventListener('focus', autoRefresh);
 
 /* ============ 啟動 ============ */
 if('serviceWorker' in navigator){ navigator.serviceWorker.register('sw.js').catch(()=>{}); }
