@@ -157,16 +157,6 @@
   .viewer-tip{text-align:center;color:rgba(255,255,255,.5);font-size:12px;
     padding:0 0 calc(env(safe-area-inset-bottom) + 16px)}
 
-  /* ---------- Open sheet ---------- */
-  .os-file{display:flex;align-items:center;gap:13px;margin:4px 0 20px}
-  .os-file .ftype{width:50px;height:50px;border-radius:13px}
-  .os-info{min-width:0;flex:1}
-  .os-name{font-size:15.5px;font-weight:650;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-  .os-sub{font-size:12.5px;color:var(--muted);margin-top:3px}
-  .os-status{display:flex;align-items:center;justify-content:center;gap:9px;
-    color:var(--accent);font-size:14px;font-weight:600;padding:20px 0 26px}
-  .os-actions .primary{margin-top:0}
-  .os-actions .ghost-btn{width:100%;padding:13px;margin-top:10px;font-size:14.5px}
 
   /* progress card */
   .card.busy{pointer-events:none}
@@ -426,29 +416,10 @@
   <div class="viewer-tip">長按圖片可存到相簿</div>
 </div>
 
-<!-- Open sheet (non-image files) -->
-<div class="overlay" id="openOverlay">
-  <div class="sheet open-sheet">
-    <div class="grab"></div>
-    <div class="os-file">
-      <span id="osIcon"></span>
-      <div class="os-info"><div class="os-name" id="osName"></div><div class="os-sub" id="osSub"></div></div>
-    </div>
-    <div class="os-status" id="osStatus">
-      <svg viewBox="0 0 24 24" fill="none" style="width:20px;height:20px;animation:spin 1s linear infinite"><circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="2" stroke-opacity=".3"/><path d="M21 12a9 9 0 00-9-9" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
-      <span>🔓 解密中…</span>
-    </div>
-    <div class="os-actions" id="osActions" style="display:none">
-      <button class="primary" id="osOpen">📂 用其他 App 開啟 / 預覽</button>
-      <button class="ghost-btn" id="osDownload">⬇️ 下載到裝置</button>
-    </div>
-  </div>
-</div>
-
 <div class="toasts" id="toasts"></div>
 
 <script>
-const APP_VERSION = 'v4';   /* 每次改版就 +1,方便確認有更新到 */
+const APP_VERSION = 'v5';   /* 每次改版就 +1,方便確認有更新到 */
 
 /* ============ 設定 (localStorage) ============ */
 const CFG_KEY = 'cft.config.v1';
@@ -635,50 +606,19 @@ async function fetchDecrypted(entry){
   const dec = await decBytes(bytes);
   return new Blob([dec], {type: mimeFor(entry.name)});
 }
-/* 非圖片:跳出「檔案就緒」面板,由使用者按鈕觸發原生開啟(避開 iOS 手勢限制) */
-let openBlob=null, openUrl=null, openName='', openType='';
-function openEntry(f){
+/* 非圖片:解密後直接用系統預設 App 開啟
+   iOS → 跳「在 Word/Excel… 中打開」的快速查看;桌機 → 下載後由系統預設程式開啟 */
+async function openEntry(f){
   if(!requireConfig()) return;
   if(f.category==='image'){ openImageViewer(f); return; }
-  openName=f.name; openBlob=null;
-  if(openUrl){ URL.revokeObjectURL(openUrl); openUrl=null; }
-  $('#osIcon').innerHTML=`<div class="ftype" style="background:${catColor(f.category)}">${typeIconSVG(f.category,f.name)}</div>`;
-  $('#osName').textContent=f.name;
-  $('#osSub').textContent=fmtSize(f.size);
-  $('#osStatus').style.display='flex';
-  $('#osActions').style.display='none';
-  $('#openOverlay').classList.add('open');
-  (async()=>{
-    try{
-      openBlob = await fetchDecrypted(f);
-      openType = openBlob.type;
-      openUrl = URL.createObjectURL(openBlob);
-      $('#osStatus').style.display='none';
-      $('#osActions').style.display='block';
-    }catch(e){
-      closeOpenSheet();
-      toast('err', e.decrypt ? e.message : `開啟失敗:${e.message}`);
-    }
-  })();
-}
-function closeOpenSheet(){
-  $('#openOverlay').classList.remove('open');
-  setTimeout(()=>{ if(openUrl){ URL.revokeObjectURL(openUrl); openUrl=null; } openBlob=null; }, 500);
-}
-async function osOpenExternal(){
-  if(!openBlob) return;
-  const file = new File([openBlob], openName, {type: openType||'application/octet-stream'});
-  // 手機優先:原生分享/快速查看(Word/Excel/PPT/PDF 都能預覽或用 App 開)
-  if(navigator.canShare && navigator.canShare({files:[file]})){
-    try{ await navigator.share({files:[file]}); closeOpenSheet(); return; }
-    catch(e){ if(e && e.name==='AbortError'){ return; } /* 其他錯誤 → 退回開分頁 */ }
+  toast('info','🔓 解密開啟中…');
+  try{
+    const blob = await fetchDecrypted(f);
+    saveBlob(blob, f.name);
+  }catch(e){
+    toast('err', e.decrypt ? e.message : `開啟失敗:${e.message}`);
   }
-  // 桌機/不支援分享:開新分頁(PDF 直接看,Office 會下載由系統開)
-  const w = window.open(openUrl, '_blank');
-  if(!w){ saveBlob(openBlob, openName); }
-  closeOpenSheet();
 }
-function osDownload(){ if(openBlob) saveBlob(openBlob, openName); }
 
 /* 圖片全螢幕檢視 */
 let viewerUrl=null, viewerEntry=null;
@@ -837,11 +777,6 @@ $('#swAutoDel').addEventListener('click', ()=> $('#swAutoDel').classList.toggle(
 $('#viewerClose').addEventListener('click', closeViewer);
 $('#viewer').addEventListener('click', e=>{ if(e.target.id==='viewer'||e.target.id==='viewerBody') closeViewer(); });
 $('#viewerDl').addEventListener('click', ()=>{ if(viewerEntry) downloadEntry(viewerEntry, $('#viewerDl')); });
-
-/* 檔案就緒面板事件 */
-$('#osOpen').addEventListener('click', osOpenExternal);
-$('#osDownload').addEventListener('click', osDownload);
-$('#openOverlay').addEventListener('click', e=>{ if(e.target.id==='openOverlay') closeOpenSheet(); });
 
 $('#btnSave').addEventListener('click', ()=>{
   cfg.owner=$('#inOwner').value.trim(); cfg.repo=$('#inRepo').value.trim();
