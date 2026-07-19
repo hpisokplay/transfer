@@ -52,11 +52,20 @@
     border-bottom:1px solid var(--border);
     display:flex; align-items:center; gap:12px;
   }
-  .logo{width:38px;height:38px;border-radius:11px;background:var(--grad);
+  .brand{display:flex;align-items:center;gap:12px;border:none;background:none;cursor:pointer;
+    padding:5px;margin:-5px;border-radius:13px;font-family:inherit;text-align:left;
+    transition:background .18s,transform .12s}
+  .brand:hover{background:color-mix(in srgb,var(--accent) 9%,transparent)}
+  .brand:active{transform:scale(.97)}
+  .logo{position:relative;width:38px;height:38px;border-radius:11px;background:var(--grad);
     display:grid;place-items:center;flex:0 0 auto;box-shadow:0 4px 14px rgba(61,139,240,.4)}
   .logo svg{width:20px;height:20px}
-  .title h1{font-size:18px;font-weight:700;margin:0;letter-spacing:-.01em}
-  .title p{font-size:12px;color:var(--muted);margin:1px 0 0}
+  .logo::after{content:"+";position:absolute;right:-4px;bottom:-4px;width:17px;height:17px;
+    background:var(--accent2);color:#fff;border-radius:50%;font-size:13px;font-weight:800;line-height:1;
+    display:grid;place-items:center;box-shadow:0 0 0 2.5px var(--bg)}
+  .title{display:flex;flex-direction:column}
+  .brand-name{font-size:18px;font-weight:700;letter-spacing:-.01em;color:var(--text)}
+  .brand-sub{font-size:12px;color:var(--accent);margin-top:1px;font-weight:650}
   .header-spacer{flex:1}
   .icon-btn{width:40px;height:40px;border-radius:12px;border:1px solid var(--border);
     background:var(--surface);color:var(--text);display:grid;place-items:center;cursor:pointer;
@@ -71,24 +80,22 @@
   /* ---------- Content ---------- */
   main{flex:1;padding:18px 16px 8px}
 
-  /* Upload zone */
+  /* Upload zone (compact) */
   .drop{
+    display:flex; align-items:center; gap:13px;
     border:1.5px dashed color-mix(in srgb,var(--accent) 45%,var(--border));
-    border-radius:var(--radius); background:var(--surface2);
-    padding:26px 18px; text-align:center; cursor:pointer;
-    transition:border-color .2s,background .2s,transform .12s; margin-bottom:18px;
+    border-radius:16px; background:var(--surface2);
+    padding:12px 15px; cursor:pointer;
+    transition:border-color .2s,background .2s,transform .12s; margin-bottom:16px;
   }
   .drop:hover{border-color:var(--accent);background:color-mix(in srgb,var(--accent) 5%,var(--surface))}
   .drop.drag{border-color:var(--accent);background:color-mix(in srgb,var(--accent) 9%,var(--surface));transform:scale(1.01)}
-  .drop-ico{width:52px;height:52px;border-radius:16px;background:var(--grad);margin:0 auto 12px;
-    display:grid;place-items:center;box-shadow:0 8px 20px rgba(61,139,240,.35)}
-  .drop-ico svg{width:26px;height:26px}
-  .drop b{display:block;font-size:15px;font-weight:650;margin-bottom:3px}
-  .drop small{color:var(--muted);font-size:12.5px}
-  .lock-note{display:inline-flex;align-items:center;gap:5px;margin-top:11px;font-size:11.5px;
-    color:var(--muted);background:color-mix(in srgb,var(--ok) 12%,transparent);
-    padding:4px 10px;border-radius:999px}
-  .lock-note svg{width:12px;height:12px}
+  .drop-ico{width:40px;height:40px;border-radius:11px;background:var(--grad);flex:0 0 auto;
+    display:grid;place-items:center;box-shadow:0 6px 16px rgba(61,139,240,.35)}
+  .drop-ico svg{width:20px;height:20px}
+  .drop-txt{min-width:0}
+  .drop b{display:block;font-size:14.5px;font-weight:650}
+  .drop small{display:block;color:var(--muted);font-size:11.5px;margin-top:2px}
 
   /* Section label */
   .sec-head{display:flex;align-items:center;justify-content:space-between;margin:2px 4px 12px}
@@ -275,13 +282,15 @@
 <body>
 <div class="app">
   <header>
-    <div class="logo" aria-hidden="true">
-      <svg viewBox="0 0 24 24" fill="none"><path d="M12 3v12m0 0l-4-4m4 4l4-4M5 21h14" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
-    </div>
-    <div class="title">
-      <h1>資料傳輸</h1>
-      <p id="subtitle">端對端加密 · 電腦 ↔ 手機</p>
-    </div>
+    <button class="brand" id="brandUpload" title="點此上傳檔案">
+      <span class="logo" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none"><path d="M12 16V4m0 0L7 9m5-5l5 5M4 20h16" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </span>
+      <span class="title">
+        <span class="brand-name">資料傳輸</span>
+        <span class="brand-sub">＋ 點這裡上傳檔案</span>
+      </span>
+    </button>
     <div class="header-spacer"></div>
     <button class="icon-btn" id="btnRefreshTop" aria-label="重新整理">
       <svg viewBox="0 0 24 24" fill="none"><path d="M4 4v6h6M20 20v-6h-6M20 8A8 8 0 006 6.3M4 16a8 8 0 0014-2.3" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
@@ -297,11 +306,9 @@
       <div class="drop-ico">
         <svg viewBox="0 0 24 24" fill="none"><path d="M12 16V4m0 0L7 9m5-5l5 5M4 20h16" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
       </div>
-      <b>拖曳檔案到這裡,或點此選擇</b>
-      <small>Word · PPT · PDF · Excel · 圖片 &nbsp;(建議單檔 &lt; 25MB)</small>
-      <div class="lock-note">
-        <svg viewBox="0 0 24 24" fill="none"><rect x="5" y="11" width="14" height="10" rx="2" stroke="currentColor" stroke-width="2"/><path d="M8 11V8a4 4 0 018 0v3" stroke="currentColor" stroke-width="2"/></svg>
-        上傳前自動加密,GitHub 上只是亂碼
+      <div class="drop-txt">
+        <b>上傳檔案</b>
+        <small>點此選擇或拖曳 · 上傳前自動加密 🔒</small>
       </div>
     </div>
 
@@ -419,7 +426,7 @@
 <div class="toasts" id="toasts"></div>
 
 <script>
-const APP_VERSION = 'v5';   /* 每次改版就 +1,方便確認有更新到 */
+const APP_VERSION = 'v6';   /* 每次改版就 +1,方便確認有更新到 */
 
 /* ============ 設定 (localStorage) ============ */
 const CFG_KEY = 'cft.config.v1';
@@ -672,6 +679,8 @@ function fmtTime(t){
 function catCount(c){ return c==='recent' ? idx.files.length : idx.files.filter(f=>f.category===c).length; }
 
 function render(){
+  // 上傳格子只在「最近」分頁顯示
+  $('#drop').style.display = (activeCat==='recent') ? '' : 'none';
   // tabs active + badges
   document.querySelectorAll('.tab').forEach(t=>{
     const c=t.dataset.cat; t.classList.toggle('active', c===activeCat);
@@ -809,6 +818,7 @@ function requireConfig(){ if(!isConfigured()){ toast('info','請先完成設定'
 /* ============ 事件:上傳 / 拖曳 / 頁籤 ============ */
 const drop=$('#drop'), fileInput=$('#fileInput');
 drop.addEventListener('click', ()=> requireConfig() && fileInput.click());
+$('#brandUpload').addEventListener('click', ()=> requireConfig() && fileInput.click());
 fileInput.addEventListener('change', e=>{ handleFiles(e.target.files); fileInput.value=''; });
 ;['dragenter','dragover'].forEach(ev=> drop.addEventListener(ev, e=>{ e.preventDefault(); drop.classList.add('drag'); }));
 ;['dragleave','drop'].forEach(ev=> drop.addEventListener(ev, e=>{ e.preventDefault(); if(ev==='dragleave' && drop.contains(e.relatedTarget)) return; drop.classList.remove('drag'); }));
