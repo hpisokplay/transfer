@@ -246,6 +246,10 @@
   .test-result.err{background:color-mix(in srgb,var(--danger) 13%,transparent);color:var(--danger)}
   .divider{height:1px;background:var(--border);margin:20px 0}
   .link-help{font-size:12px;color:var(--accent);text-decoration:none}
+  .app-foot{display:flex;align-items:center;justify-content:space-between;
+    margin-top:18px;padding-top:16px;border-top:1px solid var(--border);
+    font-size:12.5px;color:var(--muted)}
+  .app-foot b{color:var(--text);font-weight:700}
 
   /* Toast */
   .toasts{position:fixed;left:0;right:0;bottom:calc(96px + env(safe-area-inset-bottom));z-index:60;
@@ -381,6 +385,11 @@
     </div>
 
     <button class="primary" id="btnSave">儲存設定</button>
+
+    <div class="app-foot">
+      <span>目前版本 <b id="appVer">—</b></span>
+      <button class="ghost-btn" id="btnUpdate">🔄 檢查更新</button>
+    </div>
   </div>
 </div>
 
@@ -407,6 +416,8 @@
 <div class="toasts" id="toasts"></div>
 
 <script>
+const APP_VERSION = 'v3';   /* 每次改版就 +1,方便確認有更新到 */
+
 /* ============ 設定 (localStorage) ============ */
 const CFG_KEY = 'cft.config.v1';
 const cfg = loadCfg();
@@ -812,6 +823,22 @@ window.addEventListener('drop', e=>e.preventDefault());
 
 document.querySelectorAll('.tab').forEach(t=> t.addEventListener('click', ()=>{ activeCat=t.dataset.cat; render(); }));
 $('#btnRefreshTop').addEventListener('click', ()=>refresh(true));
+
+/* ============ 檢查更新 ============ */
+$('#appVer').textContent = APP_VERSION;
+async function forceUpdate(btn){
+  const prev = btn ? btn.textContent : '';
+  if(btn){ btn.textContent='更新中…'; btn.disabled=true; }
+  toast('info','正在抓取最新版…');
+  try{
+    if('caches' in window){ const ks=await caches.keys(); await Promise.all(ks.map(k=>caches.delete(k))); }
+    if('serviceWorker' in navigator){ const rs=await navigator.serviceWorker.getRegistrations(); await Promise.all(rs.map(r=>r.unregister())); }
+  }catch(e){}
+  // 破快取重新載入,確保抓到最新的 index.html
+  const u = new URL(location.href); u.searchParams.set('_v', Date.now().toString());
+  location.replace(u.href);
+}
+$('#btnUpdate').addEventListener('click', ev=>forceUpdate(ev.currentTarget));
 
 /* ============ 啟動 ============ */
 if('serviceWorker' in navigator){ navigator.serviceWorker.register('sw.js').catch(()=>{}); }
