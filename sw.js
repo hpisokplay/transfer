@@ -1,6 +1,6 @@
 /* 資料傳輸 — Service Worker
    只快取 App 外殼(離線可開、可安裝);檔案資料一律走即時 GitHub API,不快取。 */
-const CACHE = 'cft-shell-v7';
+const CACHE = 'cft-shell-v8';
 const SHELL = [
   './',
   './index.html',
