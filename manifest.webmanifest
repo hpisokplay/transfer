@@ -1,0 +1,17 @@
+{
+  "name": "資料傳輸",
+  "short_name": "資料傳輸",
+  "description": "端對端加密的公司資料中轉工具,電腦與手機之間傳 Word / PPT / PDF / Excel / 圖片。",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#eef5fd",
+  "theme_color": "#3d8bf0",
+  "lang": "zh-Hant",
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
