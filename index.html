@@ -42,7 +42,7 @@
     min-height:100vh; min-height:100dvh;
   }
   .app{max-width:520px; margin:0 auto; min-height:100dvh; display:flex; flex-direction:column;
-    position:relative; padding-bottom:calc(100px + env(safe-area-inset-bottom));}
+    position:relative; padding-bottom:calc(112px + env(safe-area-inset-bottom));}
 
   /* ---------- Header ---------- */
   header{
@@ -199,20 +199,22 @@
   .empty b{display:block;color:var(--text);font-size:15px;margin-bottom:4px}
   .empty small{font-size:12.5px}
 
-  /* ---------- Bottom nav (floating) ---------- */
+  /* ---------- Bottom nav (docked) ---------- */
   nav{
-    position:fixed; left:14px; right:14px; bottom:calc(14px + env(safe-area-inset-bottom)); z-index:30;
-    max-width:492px; margin-inline:auto;
-    padding:9px 6px 8px;
-    background:color-mix(in srgb,var(--surface) 84%,transparent);
+    position:fixed; left:0; right:0; bottom:0; z-index:30;
+    max-width:520px; margin-inline:auto;
+    padding:9px 6px calc(7px + env(safe-area-inset-bottom));
+    background:color-mix(in srgb,var(--surface) 88%,transparent);
     backdrop-filter:saturate(180%) blur(24px);-webkit-backdrop-filter:saturate(180%) blur(24px);
-    border:1px solid var(--border); border-radius:26px;
-    box-shadow:0 10px 34px rgba(20,50,90,.16),0 2px 6px rgba(20,50,90,.06);
+    border:1px solid var(--border); border-bottom:none; border-radius:22px 22px 0 0;
+    box-shadow:0 -8px 30px rgba(20,50,90,.14);
     display:grid;grid-template-columns:repeat(6,1fr);gap:2px;
   }
   .tab{border:none;background:none;cursor:pointer;padding:0;border-radius:14px;
-    display:flex;flex-direction:column;align-items:center;gap:4px;color:var(--muted);
+    display:flex;flex-direction:column;align-items:center;gap:3px;color:var(--muted);
     transition:color .2s}
+  .tab .cnt{font-size:10px;font-weight:750;color:var(--muted);line-height:1;opacity:.85}
+  .tab.active .cnt{color:var(--accent);opacity:1}
   .tab .ic{position:relative;width:100%;max-width:48px;height:33px;border-radius:12px;
     display:grid;place-items:center;transition:background .28s cubic-bezier(.32,.72,0,1),box-shadow .28s,transform .18s}
   .tab .ic svg{width:21px;height:21px}
@@ -356,27 +358,27 @@
   <nav id="nav">
     <button class="tab active" data-cat="recent">
       <span class="ic"><svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="2"/><path d="M12 7v5l3 2" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg><i class="badge hidden"></i></span>
-      <span class="lbl">最近</span>
+      <span class="lbl">最近</span><span class="cnt">0</span>
     </button>
     <button class="tab" data-cat="image">
       <span class="ic"><svg viewBox="0 0 24 24" fill="none"><rect x="3" y="5" width="18" height="14" rx="2" stroke="currentColor" stroke-width="2"/><circle cx="8.5" cy="10" r="1.5" fill="currentColor"/><path d="M21 16l-5-5-7 7" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg><i class="badge hidden"></i></span>
-      <span class="lbl">圖片</span>
+      <span class="lbl">圖片</span><span class="cnt">0</span>
     </button>
     <button class="tab" data-cat="word">
       <span class="ic"><svg viewBox="0 0 24 24" fill="none"><path d="M6 3h9l4 4v14a1 1 0 01-1 1H6a1 1 0 01-1-1V4a1 1 0 011-1z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><path d="M8.5 12l1 4 1.5-4 1.5 4 1-4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg><i class="badge hidden"></i></span>
-      <span class="lbl">Word</span>
+      <span class="lbl">Word</span><span class="cnt">0</span>
     </button>
     <button class="tab" data-cat="ppt">
       <span class="ic"><svg viewBox="0 0 24 24" fill="none"><path d="M6 3h9l4 4v14a1 1 0 01-1 1H6a1 1 0 01-1-1V4a1 1 0 011-1z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><path d="M9 11h3a1.5 1.5 0 010 3H9v-3zm0 0v6" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg><i class="badge hidden"></i></span>
-      <span class="lbl">PPT</span>
+      <span class="lbl">PPT</span><span class="cnt">0</span>
     </button>
     <button class="tab" data-cat="pdf">
       <span class="ic"><svg viewBox="0 0 24 24" fill="none"><path d="M6 3h9l4 4v14a1 1 0 01-1 1H6a1 1 0 01-1-1V4a1 1 0 011-1z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><path d="M8.5 17v-5h1.5a1.3 1.3 0 010 2.6H8.5M13 17v-5h2m-2 2.5h1.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg><i class="badge hidden"></i></span>
-      <span class="lbl">PDF</span>
+      <span class="lbl">PDF</span><span class="cnt">0</span>
     </button>
     <button class="tab" data-cat="excel">
       <span class="ic"><svg viewBox="0 0 24 24" fill="none"><path d="M6 3h9l4 4v14a1 1 0 01-1 1H6a1 1 0 01-1-1V4a1 1 0 011-1z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><path d="M9 11l4 6m0-6l-4 6" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg><i class="badge hidden"></i></span>
-      <span class="lbl">Excel</span>
+      <span class="lbl">Excel</span><span class="cnt">0</span>
     </button>
   </nav>
 </div>
@@ -457,7 +459,7 @@
 <div class="toasts" id="toasts"></div>
 
 <script>
-const APP_VERSION = 'v12';  /* 每次改版就 +1,方便確認有更新到 */
+const APP_VERSION = 'v13';  /* 每次改版就 +1,方便確認有更新到 */
 
 /* ============ 設定 (localStorage) ============ */
 const CFG_KEY = 'cft.config.v1';
@@ -595,6 +597,14 @@ async function loadIndex(){
   let pruned=false;
   Object.keys(thumbs).forEach(k=>{ if(thumbs[k]!=='x' && !idx.files.some(f=>f.id===k)){ delete thumbs[k]; pruned=true; } });
   if(pruned) saveThumbs();
+  // 未讀名單:首次使用以現有檔案為已讀基準;之後清掉已刪檔案
+  if(seenIds===null){ seenIds=new Set(idx.files.map(f=>f.id)); saveSeen(); }
+  else{
+    const alive=new Set(idx.files.map(f=>f.id));
+    const before=seenIds.size;
+    seenIds=new Set([...seenIds].filter(id=>alive.has(id)));
+    if(seenIds.size!==before) saveSeen();
+  }
 }
 async function saveIndex(){
   const enc = await encBytes(te.encode(JSON.stringify(idx)));
@@ -645,6 +655,18 @@ async function makeThumbFromBlob(id, blob){
     return true;
   }catch(e){ return false; }
 }
+/* ============ 未讀追蹤(本機) ============ */
+const SEEN_KEY='cft.seen.v1';
+let seenIds=null;   // null = 尚未初始化(索引還沒載入)
+try{ const s=localStorage.getItem(SEEN_KEY); if(s!==null) seenIds=new Set(JSON.parse(s)); }catch(e){ seenIds=new Set(); }
+function saveSeen(){ try{ localStorage.setItem(SEEN_KEY, JSON.stringify([...seenIds])); }catch(e){} }
+function markCatSeen(cat){
+  if(!seenIds || cat==='recent') return;
+  let changed=false;
+  idx.files.forEach(f=>{ if(f.category===cat && !seenIds.has(f.id)){ seenIds.add(f.id); changed=true; } });
+  if(changed) saveSeen();
+}
+
 let thumbQueue=[], thumbBusy=false;
 function queueThumb(f){
   if(thumbs[f.id] || thumbQueue.some(x=>x.id===f.id)) return;
@@ -684,6 +706,7 @@ async function handleFiles(fileList){
       });
       const entry = {id, name:file.name, category:cat, size:file.size, time:Date.now(), sha, path};
       await mutateIndex(x => { if(!x.files.some(f=>f.id===id)) x.files.push(entry); });
+      if(seenIds){ seenIds.add(id); saveSeen(); }   // 自己傳的視為已讀
       uploading.delete(id); render();
       toast('ok', `已加密上傳 ${file.name}`);
     }catch(e){
@@ -807,11 +830,16 @@ function render(){
   // 上傳格子只在「最近」分頁顯示
   const searching = !!searchQuery;
   $('#drop').style.display = (activeCat==='recent' && !searching) ? '' : 'none';
-  // tabs active + badges
+  // 正在看的分類 → 該分類檔案標記為已讀
+  if(!searching) markCatSeen(activeCat);
+  // tabs:badge=未讀數(點開即消),cnt=固定總數
   document.querySelectorAll('.tab').forEach(t=>{
     const c=t.dataset.cat; t.classList.toggle('active', !searching && c===activeCat);
-    const badge=t.querySelector('.badge'); const n=catCount(c);
-    if(n>0 && c!=='recent'){ badge.textContent=n>99?'99+':n; badge.classList.remove('hidden'); }
+    const cntEl=t.querySelector('.cnt'); if(cntEl) cntEl.textContent=catCount(c);
+    const badge=t.querySelector('.badge');
+    const unread = (c==='recent' || !seenIds) ? 0
+      : idx.files.filter(f=>f.category===c && !seenIds.has(f.id)).length;
+    if(unread>0){ badge.textContent=unread>99?'99+':unread; badge.classList.remove('hidden'); }
     else badge.classList.add('hidden');
   });
 
