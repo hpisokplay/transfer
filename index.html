@@ -407,6 +407,7 @@
       <label>加密密碼</label>
       <input id="inPass" type="password" placeholder="自訂一組密碼" autocapitalize="off" autocorrect="off" spellcheck="false" />
       <div class="hint">電腦和手機要設<b>完全一樣</b>的密碼,檔案才能互通解密。此密碼不會上傳。</div>
+      <div class="hint">密碼校驗碼:<b id="passCode" style="color:var(--accent);letter-spacing:.08em">—</b> ← 兩台裝置顯示<b>相同代碼</b>,密碼才真的一致</div>
     </div>
 
     <button class="ghost-btn" id="btnTest" style="width:100%;padding:11px;margin-bottom:4px">測試連線</button>
@@ -456,7 +457,7 @@
 <div class="toasts" id="toasts"></div>
 
 <script>
-const APP_VERSION = 'v10';  /* 每次改版就 +1,方便確認有更新到 */
+const APP_VERSION = 'v11';  /* 每次改版就 +1,方便確認有更新到 */
 
 /* ============ 設定 (localStorage) ============ */
 const CFG_KEY = 'cft.config.v1';
@@ -588,7 +589,7 @@ async function loadIndex(){
   if(!res){ idx={files:[]}; idxSha=null; return; }
   idxSha = res.sha;
   try{ idx = JSON.parse(td.decode(await decBytes(res.bytes))); }
-  catch(e){ const err=new Error('索引解密失敗,請確認加密密碼與另一台裝置一致'); err.decrypt=true; throw err; }
+  catch(e){ const err=new Error('兩台裝置的加密密碼不一致!開啟 ⚙️ 設定,比對密碼欄下方的「校驗碼」是否相同'); err.decrypt=true; throw err; }
   if(!idx.files) idx.files=[];
   // 清掉已不存在檔案的縮圖快取
   let pruned=false;
@@ -912,9 +913,19 @@ function openSettings(){
   $('#inPat').value=cfg.pat; $('#inPass').value=cfg.password;
   $('#swAutoDel').classList.toggle('on', cfg.autoDelete);
   $('#testResult').className='test-result';
-  updateStorInfo();
+  updateStorInfo(); updatePassCode();
   overlay.classList.add('open');
 }
+/* 密碼校驗碼:由密碼雜湊出 4 字代碼,兩台裝置相同代碼=密碼一致(不洩漏密碼) */
+async function updatePassCode(){
+  const pw=$('#inPass').value.trim();
+  const el=$('#passCode');
+  if(!pw){ el.textContent='—'; return; }
+  const h=new Uint8Array(await crypto.subtle.digest('SHA-256', te.encode('cft-code/'+pw)));
+  const AB='34679ACDEFHJKMNPRTWXY';   // 避開易混淆字元
+  el.textContent = [h[0],h[1],h[2],h[3]].map(b=>AB[b%AB.length]).join('');
+}
+$('#inPass').addEventListener('input', updatePassCode);
 function updateStorInfo(){
   const total = idx.files.reduce((s,f)=>s+(f.size||0),0);
   $('#storInfo').textContent = idx.files.length
@@ -952,7 +963,7 @@ $('#viewerDl').addEventListener('click', ()=>{ if(viewerEntry) downloadEntry(vie
 
 $('#btnSave').addEventListener('click', ()=>{
   cfg.owner=$('#inOwner').value.trim(); cfg.repo=$('#inRepo').value.trim();
-  cfg.pat=$('#inPat').value.trim(); cfg.password=$('#inPass').value;
+  cfg.pat=$('#inPat').value.trim(); cfg.password=$('#inPass').value.trim();
   cfg.autoDelete=$('#swAutoDel').classList.contains('on');
   _key=null; _keyPw=null; saveCfg(); closeSettings();
   toast('ok','設定已儲存'); refresh(false);
