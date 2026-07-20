@@ -457,7 +457,7 @@
 <div class="toasts" id="toasts"></div>
 
 <script>
-const APP_VERSION = 'v11';  /* 每次改版就 +1,方便確認有更新到 */
+const APP_VERSION = 'v12';  /* 每次改版就 +1,方便確認有更新到 */
 
 /* ============ 設定 (localStorage) ============ */
 const CFG_KEY = 'cft.config.v1';
@@ -589,7 +589,7 @@ async function loadIndex(){
   if(!res){ idx={files:[]}; idxSha=null; return; }
   idxSha = res.sha;
   try{ idx = JSON.parse(td.decode(await decBytes(res.bytes))); }
-  catch(e){ const err=new Error('兩台裝置的加密密碼不一致!開啟 ⚙️ 設定,比對密碼欄下方的「校驗碼」是否相同'); err.decrypt=true; throw err; }
+  catch(e){ const err=new Error('密碼解不開雲端資料!① 兩台開 ⚙️ 比對密碼「校驗碼」是否相同 ② 若相同仍失敗=雲端是舊密碼的資料,到 ⚙️ 按「清空全部」重置後重新上傳'); err.decrypt=true; throw err; }
   if(!idx.files) idx.files=[];
   // 清掉已不存在檔案的縮圖快取
   let pruned=false;
@@ -937,21 +937,29 @@ overlay.addEventListener('click', e=>{ if(e.target===overlay) closeSettings(); }
 $('#swAutoDel').addEventListener('click', ()=> $('#swAutoDel').classList.toggle('on'));
 
 /* 清空全部 */
+/* 清空全部:直接列雲端檔案硬刪,「不需要解密」——密碼救援也靠它 */
 $('#btnClearAll').addEventListener('click', async ()=>{
   if(!isConfigured()){ toast('info','請先完成設定'); return; }
-  if(!idx.files.length){ toast('info','雲端已經是空的'); return; }
-  if(!confirm(`確定刪除雲端全部 ${idx.files.length} 個檔案?此動作無法復原!`)) return;
-  const btn=$('#btnClearAll'); btn.disabled=true;
+  if(!confirm('確定刪除雲端「全部」檔案?此動作無法復原!\n(密碼對不上時,清空後重新上傳即可復原使用)')) return;
+  const btn=$('#btnClearAll'); btn.disabled=true; btn.textContent='清空中…';
   try{
-    await loadIndex();                       // 先拿最新清單與 sha
-    const files=[...idx.files]; let done=0;
-    for(const f of files){
-      try{ await ghDelete(f.path, f.sha); }catch(e){}
-      done++; btn.textContent=`刪除中… ${done}/${files.length}`;
+    // 1. 刪除加密索引(不解密,只拿 sha)
+    const ir = await fetch(`${repoBase()}/contents/index.enc`, {headers:ghHeaders()});
+    if(ir.ok){ const d=await ir.json(); await ghDelete('index.enc', d.sha); }
+    // 2. 直接列出 data/ 底下所有檔案硬刪
+    const lr = await fetch(`${repoBase()}/contents/data`, {headers:ghHeaders()});
+    if(lr.ok){
+      const items = await lr.json();
+      if(Array.isArray(items)){
+        let done=0;
+        for(const it of items){
+          try{ await ghDelete('data/'+it.name, it.sha); }catch(e){}
+          done++; btn.textContent=`刪除中… ${done}/${items.length}`;
+        }
+      }
     }
-    await mutateIndex(x=>{ x.files=[]; });
-    thumbs={}; saveThumbs();
-    toast('ok','已清空全部檔案'); render(); updateStorInfo();
+    idx={files:[]}; idxSha=null; thumbs={}; saveThumbs();
+    toast('ok','已清空,可以重新開始上傳了'); render(); updateStorInfo();
   }catch(e){ toast('err','清空失敗:'+e.message); }
   finally{ btn.disabled=false; btn.textContent='🗑️ 清空全部'; }
 });
