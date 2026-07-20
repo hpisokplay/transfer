@@ -459,7 +459,7 @@
 <div class="toasts" id="toasts"></div>
 
 <script>
-const APP_VERSION = 'v13';  /* 每次改版就 +1,方便確認有更新到 */
+const APP_VERSION = 'v14';  /* 每次改版就 +1,方便確認有更新到 */
 
 /* ============ 設定 (localStorage) ============ */
 const CFG_KEY = 'cft.config.v1';
@@ -954,10 +954,16 @@ async function updatePassCode(){
   el.textContent = [h[0],h[1],h[2],h[3]].map(b=>AB[b%AB.length]).join('');
 }
 $('#inPass').addEventListener('input', updatePassCode);
-function updateStorInfo(){
+async function updateStorInfo(){
   const total = idx.files.reduce((s,f)=>s+(f.size||0),0);
-  $('#storInfo').textContent = idx.files.length
-    ? `${idx.files.length} 個檔案 · 共 ${fmtSize(total)}` : '目前沒有檔案';
+  const base = idx.files.length
+    ? `現有 ${idx.files.length} 個檔案 · ${fmtSize(total)}` : '目前沒有檔案';
+  $('#storInfo').textContent = base;
+  try{   // 另抓含 git 歷史的總佔用(GitHub 建議單庫 <1GB)
+    const r = await fetch(repoBase(), {headers:ghHeaders()});
+    if(r.ok){ const d=await r.json();
+      $('#storInfo').textContent = `${base} · 雲端總佔用 ${fmtSize(d.size*1024)}(建議<1GB)`; }
+  }catch(e){}
 }
 function closeSettings(){ overlay.classList.remove('open'); }
 $('#btnSettings').addEventListener('click', openSettings);
